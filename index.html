@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>志愿</title>
+    <script>
+        var majors = ['__marjors__'];
+    </script>
+    <style>
+        #app {
+            display: flex;
+            flex-direction: row;
+            visibility: hidden;
+        }
+
+        .tab-entry > div {
+            width: 100px;
+            line-height: 30px;
+            text-align: center;
+            margin: 10px;
+            border: 1px solid;
+            border-radius: 8px;
+        }
+
+        .tab-entry > .active {
+            color: white;
+            background: green;
+        }
+
+        @media print {
+            .tab-entry {
+                display: none;
+            }
+            .toggle-major {
+                display: none;
+            }
+            .tags {
+                display: none;
+            }
+        }
+
+        .school {
+            padding: 18px;
+            border-bottom: 1px solid #333333;
+        }
+
+        .school.BAO {
+            background: #d3ebd950;
+        }
+
+        .school-header {
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .school-header [alt="logo"] {
+            width: 50px;
+            /*height: 50px;*/
+            margin-right: 8px;
+        }
+
+        .is_mine {
+            color: black;
+        }
+
+        .no_mine {
+            color: gray;
+        }
+
+        .danger {
+            color: #ff0000;
+        }
+
+        .no_mine .danger {
+            color: #ff000040;
+        }
+
+        .tags {
+            width: 100px;
+        }
+
+        .tags > div {
+            margin: 10px;
+            cursor: pointer;
+        }
+
+        .major_selected {
+            background: gold;
+        }
+
+        textarea {
+            width: calc(100% - 80px);
+            margin-left: 50px;
+            display: block;
+        }
+
+        .toggle-major {
+            position: fixed;
+            left: 148px;
+            right: 120px;
+            line-height: 40px;
+            border-radius: 10px;
+            text-align: center;
+            background: green;
+            color: white;
+        }
+
+        .seq {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            border-radius: 20px;
+            text-align: center;
+            color: white;
+            background: red;
+            margin: 8px;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="tab-entry">
+        <div :class="{active: tab==='school'}" @click="tab = 'school'">待选</div>
+        <div :class="{active: tab==='zy'}" @click="tab = 'zy'">选中</div>
+        <div :class="{active: tab==='fq'}" @click="tab = 'fq'">放弃</div>
+    </div>
+    <div style="flex: 1;">
+        <div class="toggle-major" @click="showAllMajor = !showAllMajor">
+            {{showAllMajor ? '显示我关心的专业' : '显示全部专业'}}
+        </div>
+        <div style="margin-top: 40px;">
+            <div v-for="(school, i) in schools" :key="i" class="school" :class="school.type"
+                 @click.alt="onSchoolSelected(school)">
+                <div class="school-header">
+                    <span class="seq">{{i + 1}}</span>
+                    <img alt="logo" :src="school.logo"/>
+                    <div style="flex: 1;display: flex;flex-direction: row; justify-content: space-between">
+                        <div>
+                            {{school.universityName}}
+                        </div>
+                        <div>
+                            {{school.province}}
+                            /{{school.propertyName}}
+                            /{{school.categoryName}}
+                            /{{school.claim}}
+                            /{{school.batch}}
+                            /{{school.recruitCode}}
+                        </div>
+                    </div>
+
+                    <div style="margin-left: 8px;border-radius: 8px; width: 40px; color: white; text-align: center; line-height: 30px;"
+                         :style="`background: orange`" @click="onSchoolUp(school, i)">
+                        ↑
+                    </div>
+                    <div style="margin-left: 8px;border-radius: 8px; width: 40px; color: white; text-align: center; line-height: 30px;"
+                         :style="`background: orange`" @click="onSchoolDown(school, i)">
+                        ↓
+                    </div>
+                    <div style="margin-left: 8px;border-radius: 8px; width: 100px; color: white; text-align: center; line-height: 30px;"
+                         :style="`background: orange`" @click="onRemove(school)">
+                        {{school.removed ? '待定' : '不合适'}}
+                    </div>
+                </div>
+                <textarea v-model="school.note" @blur="saveZy" rows="2" placeholder="备注"></textarea>
+                <ul class="major-list" style="">
+                    <template v-for="(major, mi) in school.majors">
+                        <li v-if="major.isMine || major.selected || showAllMajor"
+                            :key="mi"
+                            :class="{
+                            is_mine: major.isMine,
+                            no_mine: !major.isMine,
+                            major_selected: major.selected,
+                        }"
+                            style="display: flex; flex-direction: row; align-items: center;"
+                            @click.alt.stop="onMajorClick(major, i, mi)"
+                        >
+
+                            <div style="margin-right: 8px;border-radius: 0px; border: 1px dashed black; width: 40px; color: black; text-align: center; line-height: 20px;"
+                                 @click="onMajorUp(school, major, mi)">
+                                ↑
+                            </div>
+                            <div style="margin-right: 8px;border-radius: 0px; border: 1px dashed black; width: 40px; color: black; text-align: center; line-height: 20px;"
+                                 @click="onMajorDown(school, major, mi)">
+                                ↓
+                            </div>
+                            <div style="flex:1; display: flex; flex-direction: row;" :class="{
+                        danger: major.beyond !== null && major.beyond<0,
+                    }">
+                                <span style="width: 360px">{{major.majorName}}<span
+                                        v-if="major.majorRemarks"> {{major.majorRemarks}}</span>/{{major.majorCode}}</span>
+                                <span style="width: 200px"> 去年：{{major.minScore}}/{{major.minRanks}}</span>
+                                <span style="width: 130px">领先：{{major.beyond}}</span>
+                                <span>学费：{{major.studyCost}}</span>
+                            </div>
+                            <div style=" display: flex; flex-direction: row;">
+                                <div v-for="(history, i) in major.historyScore" :key="i"
+                                     style="border-bottom: dashed 1px; display: inline-block; width: 150px; margin-left: 20px;">
+                                    {{history.year}}：{{history.score[0]}}/{{history.score[1]}}
+                                </div>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+
+        </div>
+    </div>
+    <div class="tags">
+        <div v-for="(tag) in tags" :key="tag.name">{{tag.name}}({{tag.schools.length}})</div>
+    </div>
+</div>
+<script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.29/vue.global.js"></script>
+<script>
+    const {createApp, ref, computed} = Vue;
+    const maxPriceRes = /maxPrice=([^&]+)/gi.exec(location.search);
+    const maxPrice = Number(maxPriceRes? maxPriceRes[1]: 0);
+
+    function avg(values) {
+        return values.reduce((r, v) => r + v, 0) / values.length;
+    }
+
+    const my_score = 447;
+    const my_rank = 239333;
+    let meta_schools = majors;
+    meta_schools.forEach(school => {
+        const min_ranks = school.majors.filter(m => m.isMine && m.minRanks);
+        school.avarageRank = avg(min_ranks.map(m => m.minRanks));
+
+        school.majors.sort((m1, m2) => {
+            if (m1.isMine) {
+                return -1;
+            }
+            if (!m1.isMine && m2.isMine) {
+                return 1;
+            }
+            return 0;
+        });
+        school.majors.map(major => {
+            major.beyond = null;
+            if (major.minRanks) {
+                major.beyond = major.minRanks - my_rank;
+            }
+            major.historyScore = JSON.parse(major.historyScore).map(item => {
+                const res = {
+                    year: Object.keys(item)[0],
+                    score: Object.values(item)[0].split(','),
+                };
+                // console.log(res);
+                return res;
+            });
+        });
+    });
+    meta_schools.sort((s1, s2) => {
+        if (s1.avarageRank < s2.avarageRank) {
+            return -1;
+        }
+        if (s1.avarageRank > s2.avarageRank) {
+            return 1;
+        }
+        return 0;
+    });
+    meta_schools = meta_schools.filter(school => {
+        const mine = school.majors.filter(item => item.isMine && item.beyond !== null);
+        if (mine.length === mine.filter(item => item.beyond < 0).length) {
+            return false;
+        }
+        return true;
+    });
+    console.log(meta_schools);
+
+    createApp({
+        setup() {
+            const zhi_yuan = localStorage.getItem('zhi_yuan');
+            let zhi_yuan_list = meta_schools;
+            if (zhi_yuan) {
+                // zhi_yuan_list = JSON.parse(zhi_yuan);
+            }
+            // 去重
+            const name_set = new Set();
+            zhi_yuan_list = zhi_yuan_list.filter(item => {
+                if (name_set.has(item.universityName)) {
+                    return false;
+                }
+                name_set.add(item.universityName);
+                return true;
+            });
+            // 初始化下标索引
+            zhi_yuan_list.forEach((item, i) => {
+                item.dataIndex = i;
+                item.majors.forEach((m, j) => m.dataIndex = j);
+            })
+            // 所有院校
+            const allSchool = ref(zhi_yuan_list);
+            const tab = ref('school');
+            const showAllMajor = ref(false);
+            const schools = computed(() => {
+                const results = allSchool.value;
+                if (tab.value === 'school') {
+                    return results.filter(item => !item.removed && !item.confirm);
+                }
+                if (tab.value === 'zy') {
+                    return results.filter(item => item.confirm);
+                }
+                return results.filter(item => item.removed);
+            });
+            const tags = Object.values(meta_schools.reduce((r, s) => {
+                if (!r[s.province]) {
+                    r[s.province] = {
+                        name: s.province,
+                        schools: [],
+                    }
+                }
+                r[s.province].schools.push(s);
+                return r;
+            }, {})).sort((i1, i2) => i2.schools.length - i1.schools.length);
+
+            function saveZy() {
+                localStorage.setItem('zhi_yuan', JSON.stringify(allSchool.value));
+            }
+
+            document.querySelector('#app').style.visibility = 'visible';
+            return {
+                my_score,
+                my_rank,
+                tab,
+                tags,
+                schools,
+                showAllMajor,
+                saveZy,
+                onSchoolSelected(school) {
+                    school.confirm = !school.confirm;
+                    saveZy();
+                },
+                onSchoolUp(school, i) {
+                    if (i === 0) {
+                        console.log('到头了', i);
+                        return;
+                    }
+
+                    const aIndex = schools.value[i - 1].dataIndex;
+                    const aSchool = allSchool.value[aIndex];
+                    const bIndex = school.dataIndex;
+
+                    school.dataIndex = aIndex;
+                    aSchool.dataIndex = bIndex;
+
+                    allSchool.value.splice(bIndex, 1, aSchool);
+                    allSchool.value.splice(aIndex, 1, school);
+                    saveZy();
+                },
+                onSchoolDown(school, i) {
+                    if (i === schools.value.length - 1) {
+                        console.log('到头了', i);
+                        return;
+                    }
+                    const aIndex = school.dataIndex;
+                    const bIndex = schools.value[i + 1].dataIndex;
+                    const bSchool = allSchool.value[bIndex];
+
+                    bSchool.dataIndex = aIndex;
+                    school.dataIndex = bIndex;
+                    allSchool.value.splice(aIndex, 1, bSchool);
+                    allSchool.value.splice(bIndex, 1, school);
+
+                    saveZy();
+                },
+                onRemove(school) {
+                    school.removed = !school.removed;
+                    saveZy();
+                },
+
+                onMajorUp(school, major, i) {
+                    if (i === 0) {
+                        console.log('到头了', i);
+                        return;
+                    }
+                    const aIndex = major.dataIndex - 1;
+                    const bIndex = major.dataIndex;
+
+                    major.dataIndex = aIndex;
+                    school.majors[aIndex].dataIndex = bIndex;
+
+                    school.majors.splice(bIndex, 1);
+                    school.majors.splice(aIndex, 0, major);
+                    saveZy();
+                },
+                onMajorDown(school, major, i) {
+                    if (i === school.majors.length - 1) {
+                        console.log('到头了', i);
+                        return;
+                    }
+                    const aIndex = major.dataIndex;
+                    const bIndex = major.dataIndex + 1;
+
+                    major.dataIndex = bIndex;
+                    school.majors[bIndex].dataIndex = aIndex;
+
+                    school.majors.splice(aIndex, 1);
+                    school.majors.splice(bIndex, 0, major);
+                    saveZy();
+                },
+                // 选中专业
+                onMajorClick(major, i, mi) {
+                    major.selected = !major.selected;
+                    saveZy();
+                },
+            };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
